@@ -33,16 +33,18 @@ startupcli_argerr(){
 # This accepts application names, filenames (eg. APP.desktop), or full paths,
 # and adds it to startup.
 startupcli_add(){
-  local app="$1"
-  [ -z "${app##*.desktop*}" ] || app="$app.desktop"
-  if [ -z "${app##/*}" ]; then
-    local orig="$app"
-    local dest=~/.config/autostart/$( basename -- "$app" )
-  else
-    local orig="/usr/share/applications/$app"
-    local dest=~/.config/autostart/"$app"
-  fi
-  cp -ai "$orig" "$dest"
+  [[ $# > 0 ]] || startupcli_argerr "startupcli_add requires at least one argument."
+  for app in "$@"; do
+    [ -z "${app##*.desktop*}" ] || app="$app.desktop"
+    if [ -z "${app##/*}" ]; then
+      local orig="$app"
+      local dest=~/.config/autostart/$( basename -- "$app" )
+    else
+      local orig="/usr/share/applications/$app"
+      local dest=~/.config/autostart/"$app"
+    fi
+    cp -ai "$orig" "$dest"
+  done
 }
 
 # I'd like to the remove .desktop suffix, while also keeping the pretty-printing
@@ -57,10 +59,12 @@ startupcli_list(){
 
 # This could compare with cached version and only delete when forced.
 startupcli_remove(){
-  local app="$1"
-  [ -z "${app##*.desktop*}" ] || app="$app.desktop"
-  rm ~/.config/autostart/"$app"
-  # if diff -s "/usr/share/applications/$app" ~/.config/autostart/"$app"; then
+  [[ $# > 0 ]] || startupcli_argerr "startupcli_remove requires at least one argument."
+  for app in "$@"; do
+    [ -z "${app##*.desktop*}" ] || app="$app.desktop"
+    rm ~/.config/autostart/"$app"
+    # if diff -s "/usr/share/applications/$app" ~/.config/autostart/"$app"; then
+  done
 }
 
 # This accepts application names, filenames (eg. APP.desktop), or full paths.
