@@ -1,0 +1,136 @@
+#!/bin/bash
+# License::   GPLv3+
+# Copyright:: 2017 Daniel Barrows
+# Status::    beta
+
+
+### CONSTANTS
+[ -z $COLUMNS ] && COLUMNS="$(tput cols 2>/dev/null || echo 80)"
+EXIT_HELP_MESSAGE=0
+EXIT_FILE_NOT_FOUND=2
+EXIT_USAGE_ERROR=7
+
+
+### FUNCTIONS
+
+show_usage(){
+  cat <<EOS
+  startupcli list
+  startupcli add APP
+  startupcli remove APP
+  startupcli view APP
+  startupcli shell
+EOS
+}
+
+startupcli_argerr(){
+  [[ $# < 2 ]] || startupcli_argerr "startupcli_argerr requires 0 or 1 arguments."
+  local message="$1"; [ -z "$message" ] && "Wrong number of arguments given."
+  echo "ERROR: $message" >&2
+  exit $EXIT_USAGE_ERROR
+}
+
+# This accepts application names, filenames (eg. APP.desktop), or full paths,
+# and adds it to startup.
+startupcli_add(){
+  local app="$1"
+  [ -z "${app##*.desktop*}" ] || app="$app.desktop"
+  if [ -z "${app##/*}" ]; then
+    local orig="$app"
+    local dest=~/.config/autostart/$( basename -- "$app" )
+  else
+    local orig="/usr/share/applications/$app"
+    local dest=~/.config/autostart/"$app"
+  fi
+  cp -ai "$orig" "$dest"
+}
+
+# I'd like to the remove .desktop suffix, while also keeping the pretty-printing
+# of ls, but I'm not sure how. This is a crude compromise.
+startupcli_list(){
+  if [ -t 1 ]; then
+    ls ~/.config/autostart
+  else
+    ls ~/.config/autostart | sed -E 's/.desktop$//'
+  fi
+}
+
+# This could compare with cached version and only delete when forced.
+startupcli_remove(){
+  local app="$1"
+  rm ~/.config/autostart/"$app"
+  # if diff -s "/usr/share/applications/$app" ~/.config/autostart/"$app"; then
+}
+
+# This accepts application names, filenames (eg. APP.desktop), or full paths.
+# Unless output is piped, this is displayed with a pager. If pygmentize is
+# installed, this will display the file with syntax highlighting.
+startupcli_view(){
+  local app="$1"
+  local fn="$app"
+  [ -z "${fn##*.desktop*}" ] || fn="$fn.desktop"
+  [ -z "${fn##/*}" ] || fn=~/.config/autostart/"$fn"
+  if [ ! -e "$fn" ]; then
+    echo "ERROR: No startup application known named '$app'." >&2
+    echo "       No file found at '$fn'." >&2
+    exit $EXIT_FILE_NOT_FOUND
+  fi
+  if [ -t 1 ]; then
+    ( pygmentize -l ini "$fn" || cat "$fn" ) | less -R
+  else
+    cat "$fn"
+  fi
+}
+
+# Autocomplete would be great here.
+startupcli_shell(){
+  [[ $# == 0 ]] || echo "WARNING: startupcli_shell arguments ignored: $*" >&2
+  echo "Welcome to startupcli shell. Type 'help' for available commands, or 'quit' to exit."
+  while read -p '> ' line; do
+    case $line in
+    q | quit | 'exit' ) break;;
+    s | shell         ) echo "ERROR: Subshells not permitted." >&2;;
+    h | -h | -? | help | --help | \
+    a | add                     | \
+    l | list                    | \
+    r | rm | remove             | \
+    v | view                    ) startupcli $line;;
+    *                           ) $line;;
+    esac
+  done
+}
+
+### COMMAND LINE OPTIONS
+startupcli(){
+  command="$1"
+  shift
+  args=()
+
+  for i in "$@"; do
+    case "$i" in
+    #-q  | --quiet         ) unset VERBOSE;;
+    #-v  | --verbose       ) VERBOSE=true;;
+    -h  | --help | '-?'   ) show_usage; return $EXIT_HELP_MESSAGE;;
+    -*                    ) echo ERROR: unknown option: "'$i'" >&2
+                            show_usage
+                            return $EXIT_USAGE_ERROR;;
+    *                     ) args+=( "$i" );;
+    esac
+  done
+
+  case $command in
+  h | -h | -? | help | --help ) show_usage; return $EXIT_HELP_MESSAGE;;
+  a | add                     ) startupcli_add                    "${args[@]}";;
+  l | list                    ) startupcli_list                   "${args[@]}";;
+  r | rm | remove             ) startupcli_remove                 "${args[@]}";;
+  v | view                    ) startupcli_view                   "${args[@]}";;
+  s | shell                   ) startupcli_shell                  "${args[@]}";;
+  *                           ) echo ERROR: unknown command: "'$command'" >&2
+                                show_usage
+                                return $EXIT_USAGE_ERROR;;
+  esac
+}
+
+if [ "$(basename -- "$0")" = "startupcli" ]; then
+  startupcli "$@"
+fi
