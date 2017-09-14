@@ -58,6 +58,7 @@ startupcli_list(){
 # This could compare with cached version and only delete when forced.
 startupcli_remove(){
   local app="$1"
+  [ -z "${app##*.desktop*}" ] || app="$app.desktop"
   rm ~/.config/autostart/"$app"
   # if diff -s "/usr/share/applications/$app" ~/.config/autostart/"$app"; then
 }
